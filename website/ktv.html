@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaktovik Time</title>
+    <style>
+        .filter-white {
+            filter: invert(100%) sepia(79%) saturate(0%) hue-rotate(43deg) brightness(107%) contrast(101%);
+        }
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle, #000, #000);
+            overflow: hidden;
+        }
+        #image-container {
+            display: flex;
+            gap: 10px;
+            background: rgba(000, 000, 000, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        img {
+            width: 50px;
+            height: 100px;
+            filter: invert(100%) sepia(79%) saturate(0%) hue-rotate(43deg) brightness(107%) contrast(101%);
+        }
+        
+        /* Floating specks */
+        .speck {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 0 8px white, 0 0 16px white;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        
+        /* Info boxes */
+        .info-box {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            max-width: 320px;
+            margin-bottom: 20px;
+        }
+        
+        .info-box h3 {
+            color: white;
+            text-shadow: 0 0 10px white;
+            margin: 0 0 10px 0;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+        }
+        
+        .info-box p {
+            color: rgba(255, 255, 255, 0.9);
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.4;
+            margin: 8px 0;
+        }
+
+        /* Conversion box styles */
+        .conversion-box {
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .conversion-box label {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 13px;
+            font-family: Arial, sans-serif;
+        }
+
+        .conversion-box input {
+            padding: 6px;
+            border-radius: 6px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .conversion-box button {
+            margin-top: 4px;
+            padding: 6px;
+            border-radius: 6px;
+            border: none;
+            background: #4da6ff;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .conversion-box button:hover {
+            background: #66b3ff;
+        }
+
+        .conversion-result {
+            margin-top: 6px;
+            font-size: 13px;
+            color: #4da6ff;
+            font-family: Arial, sans-serif;
+        }
+
+        #links-box {
+            top: 20px;
+            right: 20px;
+        }
+        
+        #explanation-box {
+            top: 20px;
+            left: 20px;
+            right: auto;
+        }
+
+        @media (max-width: 600px) {
+            #explanation-box {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="image-container">
+        <!-- Images will be dynamically inserted here -->
+    </div>
+
+    <!-- Links box -->
+    <div id="links-box" class="info-box">
+        <h3>Further Links</h3>
+        <a href="https://en.wikipedia.org/wiki/Kaktovik_numerals" target="_blank">Wikipedia: Kaktovik Numerals</a><br>
+        <a href="https://play.google.com/store/apps/details?id=com.rhysfuller.kaktovik&pli=1" target="_blank">Kaktovik WearOS Watchface</a><br>
+        <a href="https://play.google.com/store/apps/details?id=com.rhysfuller.klocktovik_app" target="_blank">Klocktovik Time App</a><br>
+        <a href="https://rhysfuller.com/.well-known/mcp.json" target="_blank">Kaktovik MCP Manifest</a><br>
+    </div>
+
+    <!-- Explanation box -->
+    <div id="explanation-box" class="info-box">
+        <h3>How Kaktovik Time Works</h3>
+        <p>This clock displays the current time using Inupiaq numerals, showing the day split into 20 parts, with those parts split into 20 parts, with those parts split into 20 parts, and finally those parts split into 20 parts. This gives an idea of the day as a fraction instead of arbitrarily going from 1-12.</p>
+
+        <!-- Conversion UI -->
+        <div class="conversion-box">
+            <label>Imperial → KTV</label>
+            <input type="text" id="imperial-hh" placeholder="HH (0-23)">
+            <input type="text" id="imperial-mm" placeholder="MM">
+            <input type="text" id="imperial-ss" placeholder="SS">
+            <input type="text" id="imperial-ms" placeholder="Milliseconds">
+            <button id="convert-i2k">Convert</button>
+            <div class="conversion-result" id="result-i2k"></div>
+        </div>
+
+        <div class="conversion-box">
+            <label>KTV → Imperial</label>
+            <input type="text" id="ktv-ikarraq" placeholder="Ikarraq (𝋀 or 0)">
+            <input type="text" id="ktv-mein" placeholder="Mein (𝋁 or 1)">
+            <input type="text" id="ktv-tick" placeholder="Tick (𝋂 or 2)">
+            <input type="text" id="ktv-kick" placeholder="Kick (𝋃 or 3)">
+            <button id="convert-k2i">Convert</button>
+            <div class="conversion-result" id="result-k2i"></div>
+        </div>
+    </div>
+
+    <script>
+        const imageContainer = document.getElementById('image-container');
+        let specks = [];
+        let mouseX = 0;
+        let mouseY = 0;
+
+        // Mouse tracking
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        // Speck class
+        class Speck {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.opacity = 0.3 + Math.random() * 0.4;
+                this.flickerSpeed = 0.02 + Math.random() * 0.03;
+                this.flickerPhase = Math.random() * Math.PI * 2;
+                
+                // Create DOM element
+                this.element = document.createElement('div');
+                this.element.className = 'speck';
+                this.element.style.left = this.x + 'px';
+                this.element.style.top = this.y + 'px';
+                document.body.appendChild(this.element);
+            }
+
+            update() {
+                // Flicker effect
+                this.flickerPhase += this.flickerSpeed;
+                const flickerOpacity = 0.3 + Math.sin(this.flickerPhase) * 0.4;
+                
+                // Avoid mouse
+                const mouseDistance = Math.sqrt(Math.pow(this.x - mouseX, 2) + Math.pow(this.y - mouseY, 2));
+                if (mouseDistance < 100) {
+                    const angle = Math.atan2(this.y - mouseY, this.x - mouseX);
+                    const force = (100 - mouseDistance) * 0.001;
+                    this.vx += Math.cos(angle) * force;
+                    this.vy += Math.sin(angle) * force;
+                }
+
+                // Avoid edges
+                const edgeForce = 0.002;
+                if (this.x < 50) this.vx += edgeForce;
+                if (this.x > window.innerWidth - 50) this.vx -= edgeForce;
+                if (this.y < 50) this.vy += edgeForce;
+                if (this.y > window.innerHeight - 50) this.vy -= edgeForce;
+
+                // Avoid other specks
+                specks.forEach(other => {
+                    if (other === this) return;
+                    const dx = this.x - other.x;
+                    const dy = this.y - other.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < 30 && distance > 0) {
+                        const force = 0.0005;
+                        this.vx += (dx / distance) * force;
+                        this.vy += (dy / distance) * force;
+                    }
+                });
+
+                // Apply velocity with damping
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Random drift for wandering
+                this.vx += (Math.random() - 0.5) * 0.02;
+                this.vy += (Math.random() - 0.5) * 0.02;
+
+                // Update DOM element
+                this.element.style.left = this.x + 'px';
+                this.element.style.top = this.y + 'px';
+                this.element.style.opacity = Math.max(0.1, Math.min(1, flickerOpacity));
+            }
+        }
+
+        // Create specks
+        function createSpecks() {
+            const numSpecks = 30 + Math.floor(Math.random() * 50);
+            const containerRect = imageContainer.getBoundingClientRect();
+            for (let i = 0; i < numSpecks; i++) {
+                const clusterX = containerRect.left + containerRect.width / 2 + (Math.random() - 0.5) * 600;
+                const clusterY = containerRect.top + containerRect.height / 2 + (Math.random() - 0.5) * 600;
+                specks.push(new Speck(clusterX, clusterY));
+            }
+        }
+
+        // Animation loop
+        function animate() {
+            specks.forEach(speck => speck.update());
+            requestAnimationFrame(animate);
+        }
+
+        async function fetchAndUpdateImages() {
+            try {
+                const timezoneOffset = new Date().getTimezoneOffset() / -60;
+                const response = await fetch(`/ktv/int/?tz=${timezoneOffset}`);
+                if (!response.ok) {
+                    console.error('Failed to fetch images:', response.statusText);
+                    return;
+                }
+                const numbers = (await response.text()).split(',').map(num => num.trim());
+                imageContainer.innerHTML = '';
+                numbers.forEach(num => {
+                    const img = document.createElement('img');
+                    img.src = `/static/img/Kaktovik_digit_${num}.svg`;
+                    img.alt = `Digit ${num}`;
+                    img.className = "filter-white";
+                    imageContainer.appendChild(img);
+                });
+            } catch (error) {
+                console.error('Error updating images:', error);
+            }
+        }
+
+        // Handle conversions
+        document.getElementById('convert-i2k').addEventListener('click', async () => {
+            const hh = document.getElementById('imperial-hh').value || 0;
+            const mm = document.getElementById('imperial-mm').value || 0;
+            const ss = document.getElementById('imperial-ss').value || 0;
+            const ms = document.getElementById('imperial-ms').value || 0;
+            const resEl = document.getElementById('result-i2k');
+            resEl.innerText = "Converting...";
+            try {
+                const resp = await fetch('/ktv/i2k/', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({hh: parseInt(hh), mm: parseInt(mm), ss: parseInt(ss), ms: parseInt(ms)})
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    resEl.innerText = `KTV: ${data.ktv.join(' ')}`;
+                } else {
+                    resEl.innerText = data.error || "Error converting.";
+                }
+            } catch {
+                resEl.innerText = "Request failed.";
+            }
+        });
+
+        document.getElementById('convert-k2i').addEventListener('click', async () => {
+            const ik = document.getElementById('ktv-ikarraq').value;
+            const me = document.getElementById('ktv-mein').value;
+            const ti = document.getElementById('ktv-tick').value;
+            const ki = document.getElementById('ktv-kick').value;
+            const resEl = document.getElementById('result-k2i');
+            resEl.innerText = "Converting...";
+            try {
+                const resp = await fetch('/ktv/k2i/', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ikarraq: ik, mein: me, tick: ti, kick: ki})
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    const imp = data.imperial;
+                    resEl.innerText = `Imperial: ${imp.hour}:${imp.minute}:${imp.second}.${imp.millisecond}`;
+                } else {
+                    resEl.innerText = data.error || "Error converting.";
+                }
+            } catch {
+                resEl.innerText = "Request failed.";
+            }
+        });
+
+        // Initialize
+        window.addEventListener('load', () => {
+            createSpecks();
+            animate();
+        });
+        setInterval(fetchAndUpdateImages, 200);
+        fetchAndUpdateImages();
+    </script>
+</body>
+</html>
