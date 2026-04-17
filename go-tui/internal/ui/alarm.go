@@ -8,7 +8,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/rfuller25/kaktovik/go-tui/internal/ktv"
 	"github.com/rfuller25/kaktovik/go-tui/internal/notify"
 )
@@ -370,8 +369,6 @@ func (m alarmModel) view(width int) string {
 
 	return sb.String()
 }
-
-var styleMuted = lipgloss.NewStyle().Foreground(colorMuted)
 
 func fmtCountdown(d time.Duration) string {
 	h := int(d.Hours())
