@@ -74,7 +74,7 @@
               description = "Install libnotify so kaktovik can send desktop notifications.";
             };
 
-            enableKaktoviкFont = lib.mkOption {
+            enableKaktovikFont = lib.mkOption {
               type = lib.types.bool;
               default = true;
               description = ''
@@ -93,7 +93,7 @@
               ++ lib.optional cfg.enableNotifications pkgs.libnotify;
 
             fonts.packages =
-              lib.optional cfg.enableKaktoviкFont pkgs.symbola;
+              lib.optional cfg.enableKaktovikFont pkgs.symbola;
           };
         };
 
@@ -112,7 +112,7 @@
               description = "The kaktovik package to install.";
             };
 
-            enableKaktoviкFont = lib.mkOption {
+            enableKaktovikFont = lib.mkOption {
               type = lib.types.bool;
               default = true;
               description = ''
@@ -125,7 +125,7 @@
           config = lib.mkIf cfg.enable {
             home.packages =
               [ cfg.package pkgs.libnotify ]
-              ++ lib.optional cfg.enableKaktoviкFont pkgs.symbola;
+              ++ lib.optional cfg.enableKaktovikFont pkgs.symbola;
           };
         };
     };
