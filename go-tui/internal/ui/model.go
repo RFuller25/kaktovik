@@ -19,7 +19,7 @@ const (
 	tabCount
 )
 
-var tabNames = []string{"Clock", "Convert", "Timer", "Stopwatch", "Alarm"}
+var tabNames = []string{"[C]lock", "Con[V]ert", "[T]imer", "Stop[W]atch", "[A]larm"}
 
 type tickMsg time.Time
 
@@ -88,21 +88,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "left", "ctrl+left":
 			m.activeTab = (m.activeTab - 1 + tabCount) % tabCount
 			return m, nil
-		case "1":
+		case "c":
 			m.activeTab = TabClock
 			return m, nil
-		case "2":
+		case "v":
 			m.activeTab = TabConvert
 			return m, nil
-		case "3":
+		case "t":
 			m.activeTab = TabTimer
 			return m, nil
-		case "4":
+		case "w":
 			m.activeTab = TabStopwatch
 			return m, nil
-		case "5":
-			m.activeTab = TabAlarm
-			return m, nil
+		case "a":
+			// Only intercept if not already on Alarm tab, so 'a' still
+			// works as "add alarm" within the Alarm tab itself.
+			if m.activeTab != TabAlarm {
+				m.activeTab = TabAlarm
+				return m, nil
+			}
 		}
 	}
 
@@ -137,7 +141,7 @@ func (m Model) View() string {
 
 	tabs := m.renderTabs()
 	content := m.renderContent()
-	footer := styleHelp.Render("1-5 jump tab · ←/→ cycle · q quit")
+	footer := styleHelp.Render("c/v/t/w/a jump tab · ←/→ cycle · q quit")
 
 	inner := lipgloss.JoinVertical(lipgloss.Left, tabs, "", content, "", footer)
 
