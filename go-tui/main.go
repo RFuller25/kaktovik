@@ -152,8 +152,9 @@ func runHeadlessTimer(d time.Duration) error {
 	kt := ktv.FromDuration(d)
 	fmt.Printf("Timer started: %s (%s)\n", formatDurationHuman(d), kt.Dotted())
 	time.Sleep(d)
-	notify.SendUrgent("Kaktovik Timer", fmt.Sprintf("Timer finished after %s", formatDurationHuman(d)))
-	notify.PlaySound()
+	notify.SendUrgent("Kaktovik Timer", fmt.Sprintf("Timer finished after %s", formatDurationHuman(d)), "critical", "")
+	notify.TerminalAttention()
+	notify.PlaySound(true, "")
 	fmt.Println("Timer complete.")
 	return nil
 }
@@ -170,8 +171,9 @@ func runHeadlessAlarm(target time.Time) error {
 		kt.Dotted(), formatDurationHuman(wait))
 	time.Sleep(wait)
 	notify.SendUrgent("Kaktovik Alarm", fmt.Sprintf("Alarm: %02d:%02d:%02d  %s",
-		target.Hour(), target.Minute(), target.Second(), kt.Spaced()))
-	notify.PlaySound()
+		target.Hour(), target.Minute(), target.Second(), kt.Spaced()), "critical", "")
+	notify.TerminalAttention()
+	notify.PlaySound(true, "")
 	fmt.Println("Alarm fired.")
 	return nil
 }

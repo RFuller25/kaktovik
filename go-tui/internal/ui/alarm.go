@@ -187,12 +187,13 @@ func (m *alarmModel) checkAlarms() {
 		a := &m.alarms[i]
 		if a.enabled && !a.fired && m.now.After(a.target) {
 			a.fired = true
-			go func(label string, kv ktv.Time) {
+			go func(label string, kv ktv.Time, urgency, icon string, soundEnabled bool, soundFile string) {
 				title := "Kaktovik Alarm"
 				body := fmt.Sprintf("Alarm: %s  (%s)", kv.Spaced(), label)
-				notify.SendUrgent(title, body)
-				notify.PlaySound()
-			}(a.label, a.ktv)
+				notify.SendUrgent(title, body, urgency, icon)
+				notify.TerminalAttention()
+				notify.PlaySound(soundEnabled, soundFile)
+			}(a.label, a.ktv, "critical", "", true, "")
 		}
 	}
 }

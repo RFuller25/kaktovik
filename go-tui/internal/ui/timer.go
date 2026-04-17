@@ -62,8 +62,9 @@ func (m timerModel) update(msg tea.Msg) (timerModel, tea.Cmd) {
 				m.remaining = 0
 				m.state = timerDone
 				go func() {
-					notify.SendUrgent("Kaktovik Timer", "Your timer has finished!")
-					notify.PlaySound()
+					notify.SendUrgent("Kaktovik Timer", "Your timer has finished!", "critical", "")
+					notify.TerminalAttention()
+					notify.PlaySound(true, "")
 				}()
 			} else {
 				m.remaining -= elapsed
