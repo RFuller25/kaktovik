@@ -11,20 +11,26 @@ import (
 )
 
 type clockModel struct {
-	now time.Time
-	tz  *time.Location
+	now       time.Time
+	tz        *time.Location
+	glyphMode bool // true = large Unicode cells; false = ASCII style
 }
 
-func newClock(tz *time.Location) clockModel {
+func newClock(tz *time.Location, glyphMode bool) clockModel {
 	if tz == nil {
 		tz = time.Local
 	}
-	return clockModel{now: time.Now().In(tz), tz: tz}
+	return clockModel{now: time.Now().In(tz), tz: tz, glyphMode: glyphMode}
 }
 
 func (c clockModel) update(msg tea.Msg) clockModel {
-	if _, ok := msg.(tickMsg); ok {
+	switch msg := msg.(type) {
+	case tickMsg:
 		c.now = time.Now().In(c.tz)
+	case tea.KeyMsg:
+		if msg.String() == "g" {
+			c.glyphMode = !c.glyphMode
+		}
 	}
 	return c
 }
@@ -32,7 +38,12 @@ func (c clockModel) update(msg tea.Msg) clockModel {
 func (c clockModel) view(width int) string {
 	kt := ktv.FromTime(c.now)
 
-	bigDigits := renderBigDigits(kt, width)
+	var digits string
+	if c.glyphMode {
+		digits = renderGlyphMode(kt, width)
+	} else {
+		digits = renderBigDigits(kt, width)
+	}
 
 	h, m, s, _ := kt.ToHMS()
 	normalStr := fmt.Sprintf("%02d:%02d:%02d", h, m, s)
@@ -41,19 +52,62 @@ func (c clockModel) view(width int) string {
 	tzName, offset := c.now.Zone()
 	tzStr := fmt.Sprintf("%s (UTC%+d)", tzName, offset/3600)
 
+	modeHint := "ascii"
+	if c.glyphMode {
+		modeHint = "glyph"
+	}
+
 	lines := []string{
 		stylePanelTitle.Render("KAKTOVIK CLOCK"),
 		"",
-		bigDigits,
+		digits,
 		"",
 		styleNormalTime.Render(fmt.Sprintf("  %s  ·  %s", ktvDotted, normalStr)),
 		styleNormalTime.Render(fmt.Sprintf("  %s", tzStr)),
 		"",
-		styleHelp.Render("  Tab/←/→ switch views · q quit"),
+		styleHelp.Render(fmt.Sprintf("  Tab/←/→ switch views · g toggle glyph/ascii [%s] · q quit", modeHint)),
 	}
 	return strings.Join(lines, "\n")
 }
 
+// renderGlyphMode renders each Kaktovik digit as a large rounded-border cell
+// containing the Unicode glyph prominently centred.
+func renderGlyphMode(kt ktv.Time, width int) string {
+	components := []struct {
+		label string
+		value int
+	}{
+		{"ikarraq", kt.Ikarraq},
+		{"mein", kt.Mein},
+		{"tick", kt.Tick},
+		{"kick", kt.Kick},
+	}
+
+	cells := make([]string, 4)
+	for i, c := range components {
+		char := ktv.Digit(c.value)
+		inner := lipgloss.JoinVertical(lipgloss.Center,
+			"",
+			styleBigTime.Copy().Render(char),
+			"",
+			styleNormalTime.Copy().Render(fmt.Sprintf("%s  %d", c.label, c.value)),
+		)
+		cells[i] = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorAccent).
+			Padding(0, 4).
+			Align(lipgloss.Center).
+			Render(inner)
+	}
+
+	row := lipgloss.JoinHorizontal(lipgloss.Top, cells...)
+	return lipgloss.NewStyle().
+		Width(width - 4).
+		Align(lipgloss.Center).
+		Render(row)
+}
+
+// renderBigDigits is the original display: Unicode char + number, no borders.
 func renderBigDigits(kt ktv.Time, width int) string {
 	components := []struct {
 		label string

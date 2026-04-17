@@ -54,7 +54,7 @@ type Model struct {
 func New(opts Options) Model {
 	return Model{
 		activeTab: opts.InitialTab,
-		clock:     newClock(opts.Timezone),
+		clock:     newClock(opts.Timezone, true), // default glyph mode; Task 8 wires config
 		converter: newConverter(),
 		timer:     newTimer(opts.TimerPreset),
 		stopwatch: newStopwatch(),
