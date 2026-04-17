@@ -178,11 +178,9 @@ func runHeadlessAlarm(target time.Time) error {
 
 func parseDurationArg(s string) (time.Duration, error) {
 	s = strings.TrimSpace(s)
-	if strings.Contains(s, ".") {
-		kt, err := ktv.ParseDotted(s)
-		if err == nil {
-			return kt.ToDuration(), nil
-		}
+	// KTV chars (𝋅𝋃𝋉𝋂) or dotted base-20 (5.3.9.2)
+	if kt, err := ktv.ParseAny(s); err == nil {
+		return kt.ToDuration(), nil
 	}
 	return time.ParseDuration(s)
 }
@@ -199,9 +197,8 @@ func parseTimeArg(s string) (time.Time, error) {
 		}
 	}
 
-	// KTV format I.M.T.K
-	kt, err := ktv.ParseDotted(s)
-	if err == nil {
+	// KTV chars (𝋅𝋃𝋉𝋂) or dotted base-20 (5.3.9.2)
+	if kt, err := ktv.ParseAny(s); err == nil {
 		h, m, sec, _ := kt.ToHMS()
 		return time.Date(now.Year(), now.Month(), now.Day(), h, m, sec, 0, now.Location()), nil
 	}

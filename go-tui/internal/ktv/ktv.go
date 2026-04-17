@@ -142,3 +142,37 @@ func ParseDotted(s string) (Time, error) {
 	}
 	return Time{nums[0], nums[1], nums[2], nums[3]}, nil
 }
+
+// ParseChars parses exactly 4 Kaktovik numeral Unicode characters (e.g. "𝋅𝋃𝋉𝋂").
+func ParseChars(s string) (Time, error) {
+	runes := []rune(strings.TrimSpace(s))
+	if len(runes) != 4 {
+		return Time{}, fmt.Errorf("expected 4 Kaktovik numeral characters, got %d", len(runes))
+	}
+	var nums [4]int
+	for i, r := range runes {
+		n, ok := charToInt[string(r)]
+		if !ok {
+			return Time{}, fmt.Errorf("character %q is not a Kaktovik numeral (U+1D2C0–U+1D2D3)", string(r))
+		}
+		nums[i] = n
+	}
+	return Time{nums[0], nums[1], nums[2], nums[3]}, nil
+}
+
+// ParseAny accepts a KTV numeral string ("𝋅𝋃𝋉𝋂"), a dotted base-20 string ("5.3.9.2"),
+// or a single base-20 integer run ("5392" parsed left-to-right as four digits).
+func ParseAny(s string) (Time, error) {
+	s = strings.TrimSpace(s)
+	// 4 KTV Unicode chars
+	if t, err := ParseChars(s); err == nil {
+		return t, nil
+	}
+	// dotted base-20
+	if strings.Contains(s, ".") {
+		if t, err := ParseDotted(s); err == nil {
+			return t, nil
+		}
+	}
+	return Time{}, fmt.Errorf("cannot parse %q as Kaktovik time (use 𝋅𝋃𝋉𝋂, 5.3.9.2, etc.)", s)
+}

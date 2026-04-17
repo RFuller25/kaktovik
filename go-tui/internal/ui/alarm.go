@@ -30,40 +30,56 @@ const (
 
 type alarmModel struct {
 	mode    alarmMode
+	ktvMode bool             // when true, add form uses KTV time input
 	alarms  []alarm
 	cursor  int
-	inputs  []textinput.Model // HH, MM, SS, label
+	inputs  []textinput.Model // [0]=HH/KTV, [1]=MM, [2]=SS, [3]=label
 	focus   int
 	err     string
 	now     time.Time
 }
 
 func newAlarm(presetTime time.Time) alarmModel {
-	inputs := make([]textinput.Model, 4)
+	m := alarmModel{
+		mode:   alarmList,
+		now:    time.Now(),
+		inputs: makeNormalInputs(),
+	}
+	if !presetTime.IsZero() {
+		m.mode = alarmAdd
+		m.inputs[0].SetValue(fmt.Sprintf("%02d", presetTime.Hour()))
+		m.inputs[1].SetValue(fmt.Sprintf("%02d", presetTime.Minute()))
+		m.inputs[2].SetValue(fmt.Sprintf("%02d", presetTime.Second()))
+	}
+	return m
+}
+
+func makeNormalInputs() []textinput.Model {
 	placeholders := []string{"HH (0-23)", "MM (0-59)", "SS (0-59)", "Label (optional)"}
+	inputs := make([]textinput.Model, 4)
 	for i := range inputs {
 		t := textinput.New()
 		t.Placeholder = placeholders[i]
-		t.CharLimit = 20
-		t.Width = 20
+		t.CharLimit = 24
+		t.Width = 22
 		inputs[i] = t
 	}
 	inputs[0].Focus()
+	return inputs
+}
 
-	m := alarmModel{
-		mode:  alarmList,
-		now:   time.Now(),
-		inputs: inputs,
+func makeKTVInputs() []textinput.Model {
+	inputs := make([]textinput.Model, 4)
+	for i := range inputs {
+		t := textinput.New()
+		t.CharLimit = 24
+		t.Width = 28
+		inputs[i] = t
 	}
-
-	if !presetTime.IsZero() {
-		m.mode = alarmAdd
-		inputs[0].SetValue(fmt.Sprintf("%02d", presetTime.Hour()))
-		inputs[1].SetValue(fmt.Sprintf("%02d", presetTime.Minute()))
-		inputs[2].SetValue(fmt.Sprintf("%02d", presetTime.Second()))
-	}
-
-	return m
+	inputs[0].Placeholder = "𝋅𝋃𝋉𝋂 or 5.3.9.2 (base-20)"
+	inputs[3].Placeholder = "Label (optional)"
+	inputs[0].Focus()
+	return inputs
 }
 
 func (m alarmModel) update(msg tea.Msg) (alarmModel, tea.Cmd) {
@@ -77,12 +93,9 @@ func (m alarmModel) update(msg tea.Msg) (alarmModel, tea.Cmd) {
 			switch msg.String() {
 			case "a", "n":
 				m.mode = alarmAdd
-				for i := range m.inputs {
-					m.inputs[i].SetValue("")
-					m.inputs[i].Blur()
-				}
+				m.ktvMode = false
+				m.inputs = makeNormalInputs()
 				m.focus = 0
-				m.inputs[0].Focus()
 				m.err = ""
 				return m, nil
 			case "d", "delete":
@@ -104,28 +117,38 @@ func (m alarmModel) update(msg tea.Msg) (alarmModel, tea.Cmd) {
 				if len(m.alarms) > 0 {
 					m.alarms[m.cursor].enabled = !m.alarms[m.cursor].enabled
 				}
-			case "escape":
-				// nothing
 			}
 		} else { // alarmAdd
 			switch msg.String() {
 			case "escape":
 				m.mode = alarmList
 				return m, nil
+			case "ctrl+k":
+				// Toggle between normal and KTV input mode
+				m.ktvMode = !m.ktvMode
+				if m.ktvMode {
+					m.inputs = makeKTVInputs()
+				} else {
+					m.inputs = makeNormalInputs()
+				}
+				m.focus = 0
+				m.err = ""
+				return m, nil
 			case "tab", "down":
 				m.inputs[m.focus].Blur()
-				m.focus = (m.focus + 1) % len(m.inputs)
+				m.focus = nextFocus(m.focus, m.ktvMode, false)
 				m.inputs[m.focus].Focus()
 				return m, nil
 			case "shift+tab", "up":
 				m.inputs[m.focus].Blur()
-				m.focus = (m.focus - 1 + len(m.inputs)) % len(m.inputs)
+				m.focus = nextFocus(m.focus, m.ktvMode, true)
 				m.inputs[m.focus].Focus()
 				return m, nil
 			case "enter":
-				if m.focus < len(m.inputs)-1 {
+				next := nextFocus(m.focus, m.ktvMode, false)
+				if next != m.focus {
 					m.inputs[m.focus].Blur()
-					m.focus++
+					m.focus = next
 					m.inputs[m.focus].Focus()
 				} else {
 					m = m.saveAlarm()
@@ -138,6 +161,25 @@ func (m alarmModel) update(msg tea.Msg) (alarmModel, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// nextFocus returns the next focused input index given the current mode.
+// In normal mode: 0→1→2→3 (wrap); in KTV mode: 0→3 (wrap).
+func nextFocus(cur int, ktvMode bool, reverse bool) int {
+	if ktvMode {
+		// only inputs 0 and 3 are used
+		if cur == 0 {
+			if reverse {
+				return 3
+			}
+			return 3
+		}
+		return 0
+	}
+	if reverse {
+		return (cur - 1 + 4) % 4
+	}
+	return (cur + 1) % 4
 }
 
 func (m *alarmModel) checkAlarms() {
@@ -157,32 +199,55 @@ func (m *alarmModel) checkAlarms() {
 
 func (m alarmModel) saveAlarm() alarmModel {
 	m.err = ""
-	parse := func(idx int, name string, max int) (int, bool) {
-		v := strings.TrimSpace(m.inputs[idx].Value())
-		if v == "" {
-			return 0, true
+
+	var hh, mm, ss int
+	var ktt ktv.Time
+
+	if m.ktvMode {
+		raw := strings.TrimSpace(m.inputs[0].Value())
+		if raw == "" {
+			m.err = "enter a Kaktovik time"
+			return m
 		}
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 0 || n > max {
-			m.err = fmt.Sprintf("%s must be 0–%d", name, max)
-			return 0, false
+		var err error
+		ktt, err = ktv.ParseAny(raw)
+		if err != nil {
+			m.err = err.Error()
+			return m
 		}
-		return n, true
+		var ms int
+		hh, mm, ss, ms = ktt.ToHMS()
+		_ = ms
+	} else {
+		parse := func(idx int, name string, max int) (int, bool) {
+			v := strings.TrimSpace(m.inputs[idx].Value())
+			if v == "" {
+				return 0, true
+			}
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 0 || n > max {
+				m.err = fmt.Sprintf("%s must be 0–%d", name, max)
+				return 0, false
+			}
+			return n, true
+		}
+		var ok bool
+		if hh, ok = parse(0, "hour", 23); !ok {
+			return m
+		}
+		if mm, ok = parse(1, "minute", 59); !ok {
+			return m
+		}
+		if ss, ok = parse(2, "second", 59); !ok {
+			return m
+		}
+		ktt = ktv.FromHMS(hh, mm, ss, 0)
 	}
 
-	hh, ok := parse(0, "hour", 23)
-	if !ok {
-		return m
-	}
-	mm, ok := parse(1, "minute", 59)
-	if !ok {
-		return m
-	}
-	ss, ok := parse(2, "second", 59)
-	if !ok {
-		return m
-	}
 	label := strings.TrimSpace(m.inputs[3].Value())
+	if label == "" {
+		label = fmt.Sprintf("%02d:%02d:%02d  (%s)", hh, mm, ss, ktt.Dotted())
+	}
 
 	now := time.Now()
 	target := time.Date(now.Year(), now.Month(), now.Day(), hh, mm, ss, 0, now.Location())
@@ -190,15 +255,10 @@ func (m alarmModel) saveAlarm() alarmModel {
 		target = target.Add(24 * time.Hour)
 	}
 
-	kt := ktv.FromHMS(hh, mm, ss, 0)
-	if label == "" {
-		label = fmt.Sprintf("%02d:%02d:%02d", hh, mm, ss)
-	}
-
 	m.alarms = append(m.alarms, alarm{
 		label:   label,
 		target:  target,
-		ktv:     kt,
+		ktv:     ktt,
 		enabled: true,
 	})
 	m.mode = alarmList
@@ -231,13 +291,14 @@ func (m alarmModel) view(width int) string {
 
 				remaining := a.target.Sub(m.now)
 				var remStr string
-				if a.fired {
+				switch {
+				case a.fired:
 					remStr = "fired"
-				} else if !a.enabled {
+				case !a.enabled:
 					remStr = "disabled"
-				} else if remaining < 0 {
+				case remaining < 0:
 					remStr = "overdue"
-				} else {
+				default:
 					remStr = fmt.Sprintf("in %s", fmtCountdown(remaining))
 				}
 
@@ -251,22 +312,41 @@ func (m alarmModel) view(width int) string {
 			}
 			sb.WriteString("\n")
 		}
-		sb.WriteString(styleHelp.Render("a add · d delete · Space enable/disable · ↑↓ move"))
+		sb.WriteString(styleHelp.Render("a add · d delete · Space enable/disable · ↑↓/k/j move"))
 	} else {
-		sb.WriteString(styleValue.Render("New Alarm (normal time)") + "\n\n")
-		labels := []string{"Hour (0–23):", "Minute (0–59):", "Second (0–59):", "Label:"}
-		for i, inp := range m.inputs {
-			focusMark := "  "
-			if i == m.focus {
-				focusMark = "> "
-			}
-			sb.WriteString(fmt.Sprintf("%s%s %s\n", focusMark, styleLabel.Render(labels[i]), inp.View()))
+		modeStr := "Normal time"
+		if m.ktvMode {
+			modeStr = "Kaktovik time"
 		}
+		sb.WriteString(styleValue.Render("New Alarm — ") +
+			styleAccent.Render(modeStr) +
+			styleHelp.Render("  (Ctrl+K toggle)") + "\n\n")
+
+		if m.ktvMode {
+			focusMark0, focusMark3 := "  ", "  "
+			if m.focus == 0 {
+				focusMark0 = "> "
+			} else {
+				focusMark3 = "> "
+			}
+			sb.WriteString(fmt.Sprintf("%s%s %s\n", focusMark0, styleLabel.Render("KTV time:"), m.inputs[0].View()))
+			sb.WriteString(fmt.Sprintf("%s%s %s\n", focusMark3, styleLabel.Render("Label:"), m.inputs[3].View()))
+		} else {
+			labels := []string{"Hour (0–23):", "Minute (0–59):", "Second (0–59):", "Label:"}
+			for i, inp := range m.inputs {
+				focusMark := "  "
+				if i == m.focus {
+					focusMark = "> "
+				}
+				sb.WriteString(fmt.Sprintf("%s%s %s\n", focusMark, styleLabel.Render(labels[i]), inp.View()))
+			}
+		}
+
 		if m.err != "" {
 			sb.WriteString("\n" + styleError.Render(m.err) + "\n")
 		}
 		sb.WriteString("\n")
-		sb.WriteString(styleHelp.Render("Tab/↑↓ move · Enter confirm · Escape cancel"))
+		sb.WriteString(styleHelp.Render("Tab/↑↓ move · Enter confirm · Ctrl+K toggle KTV/normal · Escape cancel"))
 	}
 
 	return sb.String()

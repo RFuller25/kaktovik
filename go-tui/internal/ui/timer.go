@@ -32,9 +32,9 @@ type timerModel struct {
 
 func newTimer(preset time.Duration) timerModel {
 	inp := textinput.New()
-	inp.Placeholder = "e.g. 5m30s or 1.2.3.0 (KTV)"
+	inp.Placeholder = "5m30s · 1.2.3.0 · 𝋅𝋃𝋉𝋂"
 	inp.CharLimit = 20
-	inp.Width = 24
+	inp.Width = 26
 	inp.Focus()
 
 	m := timerModel{
@@ -128,7 +128,7 @@ func (m timerModel) view(width int) string {
 			sb.WriteString(styleError.Render(m.err) + "\n")
 		}
 		sb.WriteString("\n")
-		sb.WriteString(styleHelp.Render("Enter to start · formats: 5m30s · 1h5m · 0.2.3.0 (KTV I.M.T.K)"))
+		sb.WriteString(styleHelp.Render("Enter to start · formats: 5m30s · 1h5m · 1.2.3.0 (base-20) · 𝋅𝋃𝋉𝋂 (KTV chars)"))
 
 	case timerRunning, timerPaused:
 		kt := ktv.FromDuration(m.remaining)
@@ -167,17 +167,18 @@ func parseDuration(s string) (time.Duration, error) {
 	if s == "" {
 		return 0, fmt.Errorf("enter a duration")
 	}
-	// Try KTV format first (I.M.T.K)
-	if strings.Contains(s, ".") {
-		kt, err := ktv.ParseDotted(s)
-		if err == nil {
-			return kt.ToDuration(), nil
+	// KTV numeral characters (𝋅𝋃𝋉𝋂) or dotted base-20 (5.3.9.2)
+	if kt, err := ktv.ParseAny(s); err == nil {
+		d := kt.ToDuration()
+		if d <= 0 {
+			return 0, fmt.Errorf("KTV time 0.0.0.0 has zero duration")
 		}
+		return d, nil
 	}
-	// Standard Go duration
+	// Standard Go duration (5m30s, 1h, etc.)
 	d, err := time.ParseDuration(s)
 	if err != nil {
-		return 0, fmt.Errorf("invalid duration %q (use e.g. 5m30s or 0.1.2.3 KTV)", s)
+		return 0, fmt.Errorf("invalid duration %q — use 5m30s, 1.2.3.0 (base-20), or 𝋅𝋃𝋉𝋂 (KTV chars)", s)
 	}
 	if d <= 0 {
 		return 0, fmt.Errorf("duration must be positive")
