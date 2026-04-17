@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
+	"github.com/rfuller25/kaktovik/go-tui/assets"
 	"github.com/rfuller25/kaktovik/go-tui/internal/config"
 	"github.com/rfuller25/kaktovik/go-tui/internal/ktv"
 	"github.com/rfuller25/kaktovik/go-tui/internal/notify"
@@ -125,6 +126,20 @@ var convertCmd = &cobra.Command{
 	},
 }
 
+var installFontCmd = &cobra.Command{
+	Use:   "install-font",
+	Short: "Install the embedded Kaktovik Numerals font for the current user",
+	Long: `Write the bundled Kaktovik Numerals TTF font to your user font directory
+and refresh the font cache so terminals and applications can use it.
+
+Linux:   ~/.local/share/fonts/KaktovikNumerals.ttf  (then fc-cache -f)
+macOS:   ~/Library/Fonts/KaktovikNumerals.ttf
+Windows: %LOCALAPPDATA%\Microsoft\Windows\Fonts\KaktovikNumerals.ttf`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return installFont()
+	},
+}
+
 var nowCmd = &cobra.Command{
 	Use:   "now",
 	Short: "Print current Kaktovik time to stdout (no TUI)",
@@ -149,7 +164,7 @@ func init() {
 	timerCmd.Flags().BoolP("headless", "H", false, "run without TUI, notify on completion")
 	alarmCmd.Flags().BoolP("headless", "H", false, "run without TUI, notify at alarm time")
 
-	rootCmd.AddCommand(timerCmd, alarmCmd, stopwatchCmd, convertCmd, nowCmd)
+	rootCmd.AddCommand(timerCmd, alarmCmd, stopwatchCmd, convertCmd, nowCmd, installFontCmd)
 }
 
 func runTUI(opts ui.Options) error {
@@ -234,6 +249,19 @@ func parseTimezone(s string) (*time.Location, error) {
 		return time.FixedZone(fmt.Sprintf("UTC%+g", n), secs), nil
 	}
 	return time.LoadLocation(s)
+}
+
+func installFont() error {
+	dest, err := fontInstallPath()
+	if err != nil {
+		return err
+	}
+	if err := assets.AddFontFile(dest); err != nil {
+		return fmt.Errorf("installing font: %w", err)
+	}
+	fmt.Printf("Font installed to: %s\n", dest)
+	refreshFontCache(dest)
+	return nil
 }
 
 func formatDurationHuman(d time.Duration) string {
