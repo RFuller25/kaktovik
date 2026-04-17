@@ -73,12 +73,27 @@
               default = true;
               description = "Install libnotify so kaktovik can send desktop notifications.";
             };
+
+            enableKaktoviкFont = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = ''
+                Install the Symbola font system-wide so that Kaktovik Unicode
+                numerals (U+1D2C0–U+1D2D3) render correctly in terminals that
+                support font fallback.  The clock tab uses box-drawing glyphs
+                that work without any special font; this option only affects
+                the compact Unicode characters shown in other tabs.
+              '';
+            };
           };
 
           config = lib.mkIf cfg.enable {
             environment.systemPackages =
               [ cfg.package ]
               ++ lib.optional cfg.enableNotifications pkgs.libnotify;
+
+            fonts.packages =
+              lib.optional cfg.enableKaktoviкFont pkgs.symbola;
           };
         };
 
@@ -96,10 +111,21 @@
               default = self.packages.${pkgs.system}.default;
               description = "The kaktovik package to install.";
             };
+
+            enableKaktoviкFont = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = ''
+                Install the Symbola font for the current user so that Kaktovik
+                Unicode numerals render in terminals with font-fallback support.
+              '';
+            };
           };
 
           config = lib.mkIf cfg.enable {
-            home.packages = [ cfg.package pkgs.libnotify ];
+            home.packages =
+              [ cfg.package pkgs.libnotify ]
+              ++ lib.optional cfg.enableKaktoviкFont pkgs.symbola;
           };
         };
     };
