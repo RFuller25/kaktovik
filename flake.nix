@@ -21,6 +21,12 @@
           # vendor/ directory is checked in; no network fetch needed.
           vendorHash = null;
 
+          # The Go module lives in go-tui/ so the binary defaults to "go-tui";
+          # rename it to the canonical command name.
+          postInstall = ''
+            mv $out/bin/go-tui $out/bin/kaktovik
+          '';
+
           meta = with pkgs.lib; {
             description = "Kaktovik (Inupiaq base-20) time TUI: clock, converter, timer, stopwatch, alarm";
             homepage = "https://github.com/rfuller25/kaktovik";
