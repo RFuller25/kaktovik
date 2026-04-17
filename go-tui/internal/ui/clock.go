@@ -32,7 +32,7 @@ func (c clockModel) update(msg tea.Msg) clockModel {
 func (c clockModel) view(width int) string {
 	kt := ktv.FromTime(c.now)
 
-	bigDigits := renderBigDigits(kt, width)
+	bigDigits := renderBigAsciiDigits(kt, width)
 
 	h, m, s, _ := kt.ToHMS()
 	normalStr := fmt.Sprintf("%02d:%02d:%02d", h, m, s)
@@ -54,34 +54,45 @@ func (c clockModel) view(width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func renderBigDigits(kt ktv.Time, width int) string {
+// renderBigAsciiDigits renders the four Kaktovik time components as large
+// box-drawing glyphs that work on any terminal regardless of font support.
+func renderBigAsciiDigits(kt ktv.Time, width int) string {
 	components := []struct {
-		label string
 		value int
+		label string
 	}{
-		{"ikarraq", kt.Ikarraq},
-		{"mein", kt.Mein},
-		{"tick", kt.Tick},
-		{"kick", kt.Kick},
+		{kt.Ikarraq, "ikarraq"},
+		{kt.Mein, "mein"},
+		{kt.Tick, "tick"},
+		{kt.Kick, "kick"},
 	}
 
-	cells := make([]string, 4)
+	// cellWidth gives each digit column some breathing room.
+	const cellWidth = artWidth + 6
+
+	blocks := make([]string, len(components))
 	for i, c := range components {
-		char := ktv.Digit(c.value)
-		num := fmt.Sprintf("%d", c.value)
-		cell := lipgloss.NewStyle().
-			Width(12).
+		rows := digitLines(c.value)
+
+		// Colour every row of the glyph in gold.
+		artLines := make([]string, artHeight)
+		for j, row := range rows {
+			artLines[j] = styleBigTime.Render(row)
+		}
+		art := strings.Join(artLines, "\n")
+
+		label := styleNormalTime.Render(fmt.Sprintf("%d · %s", c.value, c.label))
+
+		col := lipgloss.JoinVertical(lipgloss.Center, art, label)
+		blocks[i] = lipgloss.NewStyle().
+			Width(cellWidth).
 			Align(lipgloss.Center).
-			Render(
-				styleBigTime.Copy().Render(fmt.Sprintf("  %s  ", char)) + "\n" +
-					styleNormalTime.Copy().Render(fmt.Sprintf(" (%s) ", num)),
-			)
-		cells[i] = cell
+			Render(col)
 	}
 
-	row := lipgloss.JoinHorizontal(lipgloss.Top, cells...)
+	row := lipgloss.JoinHorizontal(lipgloss.Top, blocks...)
 	return lipgloss.NewStyle().
-		Width(width - 4).
+		Width(width - 2).
 		Align(lipgloss.Center).
 		Render(row)
 }
