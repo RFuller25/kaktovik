@@ -54,6 +54,24 @@ func newAlarm(presetTime time.Time) alarmModel {
 	return m
 }
 
+// IsCapturingInput reports whether the alarm model is actively editing a text field.
+// Used by the root model to suppress global hotkeys during text entry.
+func (m alarmModel) IsCapturingInput() bool {
+	return m.mode == alarmAdd
+}
+
+// alarmEnterNextFocus returns the next focus index when Enter is pressed.
+// Returns cur if on the last field (triggering save), otherwise advances.
+func alarmEnterNextFocus(cur int, ktvMode bool) int {
+	if cur == 3 {
+		return 3 // same → caller triggers saveAlarm
+	}
+	if ktvMode {
+		return 3 // KTV mode: 0 → 3 (label)
+	}
+	return cur + 1
+}
+
 func makeNormalInputs() []textinput.Model {
 	placeholders := []string{"HH (0-23)", "MM (0-59)", "SS (0-59)", "Label (optional)"}
 	inputs := make([]textinput.Model, 4)
@@ -145,7 +163,7 @@ func (m alarmModel) update(msg tea.Msg) (alarmModel, tea.Cmd) {
 				m.inputs[m.focus].Focus()
 				return m, nil
 			case "enter":
-				next := nextFocus(m.focus, m.ktvMode, false)
+				next := alarmEnterNextFocus(m.focus, m.ktvMode)
 				if next != m.focus {
 					m.inputs[m.focus].Blur()
 					m.focus = next
