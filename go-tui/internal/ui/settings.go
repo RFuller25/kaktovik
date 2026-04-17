@@ -73,7 +73,7 @@ func (m settingsModel) update(msg tea.Msg) (settingsModel, tea.Cmd) {
 	if m.inputFocus >= 0 {
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
-			if msg.String() == "escape" {
+			if msg.String() == "esc" || msg.String() == "enter" {
 				m.inputs[m.inputFocus].Blur()
 				m = m.flushInput(m.inputFocus)
 				m.inputFocus = -1

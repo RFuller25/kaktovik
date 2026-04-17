@@ -79,7 +79,9 @@ func (m Model) Init() tea.Cmd {
 // meaning global hotkeys (tab switching, quit) should be suppressed.
 func (m Model) isCapturingInput() bool {
 	return m.alarm.IsCapturingInput() ||
-		(m.activeTab == TabSettings && m.settings.IsCapturingInput())
+		(m.activeTab == TabSettings && m.settings.IsCapturingInput()) ||
+		(m.activeTab == TabTimer && m.timer.IsCapturingInput()) ||
+		(m.activeTab == TabConvert && m.converter.IsCapturingInput())
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -100,10 +102,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.isCapturingInput() {
 			switch msg.String() {
 			case "ctrl+c", "q":
-				if m.activeTab != TabConvert {
-					m.quitting = true
-					return m, tea.Quit
-				}
+				m.quitting = true
+				return m, tea.Quit
 			case "right", "ctrl+right":
 				m.activeTab = (m.activeTab + 1) % tabCount
 				return m, nil

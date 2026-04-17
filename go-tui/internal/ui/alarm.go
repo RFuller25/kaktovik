@@ -2,23 +2,27 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/rfuller25/kaktovik/go-tui/internal/alarmstore"
 	"github.com/rfuller25/kaktovik/go-tui/internal/config"
 	"github.com/rfuller25/kaktovik/go-tui/internal/ktv"
 	"github.com/rfuller25/kaktovik/go-tui/internal/notify"
 )
 
 type alarm struct {
-	label   string
-	target  time.Time
-	ktv     ktv.Time
-	fired   bool
-	enabled bool
+	label    string
+	target   time.Time
+	ktv      ktv.Time
+	fired    bool
+	enabled  bool
+	unitName string // systemd transient timer unit, empty if not scheduled
 }
 
 type alarmMode int
@@ -45,6 +49,12 @@ func newAlarm(presetTime time.Time) alarmModel {
 		now:    time.Now(),
 		inputs: makeNormalInputs(),
 	}
+	// Load alarms persisted from previous sessions.
+	if saved, err := alarmstore.Load(); err == nil {
+		for _, s := range saved {
+			m.alarms = append(m.alarms, alarmFromStore(s))
+		}
+	}
 	if !presetTime.IsZero() {
 		m.mode = alarmAdd
 		m.inputs[0].SetValue(fmt.Sprintf("%02d", presetTime.Hour()))
@@ -52,6 +62,68 @@ func newAlarm(presetTime time.Time) alarmModel {
 		m.inputs[2].SetValue(fmt.Sprintf("%02d", presetTime.Second()))
 	}
 	return m
+}
+
+func alarmFromStore(s alarmstore.Alarm) alarm {
+	return alarm{
+		label:    s.Label,
+		target:   s.Target,
+		ktv:      ktv.FromHMS(s.Target.Hour(), s.Target.Minute(), s.Target.Second(), 0),
+		fired:    s.Fired,
+		enabled:  s.Enabled,
+		unitName: s.UnitName,
+	}
+}
+
+func (a alarm) toStore() alarmstore.Alarm {
+	return alarmstore.Alarm{
+		Label:    a.label,
+		Target:   a.target,
+		Enabled:  a.enabled,
+		Fired:    a.fired,
+		UnitName: a.unitName,
+	}
+}
+
+// scheduleAlarmUnit creates a systemd transient timer that fires kaktovik alarm
+// --headless --immediate at the given wall-clock time, even if the TUI is closed.
+// Returns the unit name on success, empty string on failure.
+func scheduleAlarmUnit(target time.Time) string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	unitName := fmt.Sprintf("kaktovik-alarm-%d", target.Unix())
+	calSpec := target.Local().Format("2006-01-02 15:04:05")
+	err = exec.Command("systemd-run", "--user",
+		"--unit="+unitName,
+		"--timer-property=AccuracySec=1s",
+		"--timer-property=RemainAfterElapse=no",
+		"--on-calendar="+calSpec,
+		"--",
+		exe, "alarm", "--headless", "--immediate", target.Format("15:04:05"),
+	).Run()
+	if err != nil {
+		return ""
+	}
+	return unitName
+}
+
+// cancelAlarmUnit stops a pending systemd timer unit so it does not fire.
+func cancelAlarmUnit(unitName string) {
+	if unitName == "" {
+		return
+	}
+	exec.Command("systemctl", "--user", "stop", unitName+".timer").Run() //nolint:errcheck
+}
+
+// persistAlarms saves the current alarm list to disk in a background goroutine.
+func persistAlarms(alarms []alarm) {
+	saved := make([]alarmstore.Alarm, len(alarms))
+	for i, a := range alarms {
+		saved[i] = a.toStore()
+	}
+	alarmstore.Save(saved) //nolint:errcheck
 }
 
 // IsCapturingInput reports whether the alarm model is actively editing a text field.
@@ -118,10 +190,16 @@ func (m alarmModel) update(msg tea.Msg, cfg config.Config) (alarmModel, tea.Cmd)
 				return m, nil
 			case "d", "delete":
 				if len(m.alarms) > 0 {
+					unitName := m.alarms[m.cursor].unitName
 					m.alarms = append(m.alarms[:m.cursor], m.alarms[m.cursor+1:]...)
 					if m.cursor >= len(m.alarms) && m.cursor > 0 {
 						m.cursor--
 					}
+					alarms := append([]alarm(nil), m.alarms...)
+					go func() {
+						cancelAlarmUnit(unitName)
+						persistAlarms(alarms)
+					}()
 				}
 			case "up", "k":
 				if m.cursor > 0 {
@@ -138,7 +216,7 @@ func (m alarmModel) update(msg tea.Msg, cfg config.Config) (alarmModel, tea.Cmd)
 			}
 		} else { // alarmAdd
 			switch msg.String() {
-			case "escape":
+			case "esc":
 				m.mode = alarmList
 				return m, nil
 			case "ctrl+k":
@@ -201,18 +279,27 @@ func nextFocus(cur int, ktvMode bool, reverse bool) int {
 }
 
 func (m *alarmModel) checkAlarms(cfg config.Config) {
+	changed := false
 	for i := range m.alarms {
 		a := &m.alarms[i]
 		if a.enabled && !a.fired && m.now.After(a.target) {
 			a.fired = true
-			go func(label string, kv ktv.Time, urgency, icon string, soundEnabled bool, soundFile string) {
+			changed = true
+			unitName := a.unitName
+			a.unitName = ""
+			go func(label string, kv ktv.Time, urgency, icon string, soundEnabled bool, soundFile, un string) {
+				cancelAlarmUnit(un) // prevent double-notification from the systemd unit
 				title := "Kaktovik Alarm"
 				body := fmt.Sprintf("Alarm: %s  (%s)", kv.Spaced(), label)
 				notify.SendUrgent(title, body, urgency, icon)
 				notify.TerminalAttention()
 				notify.PlaySound(soundEnabled, soundFile)
-			}(a.label, a.ktv, cfg.NotifyUrgency, cfg.NotifyIcon, cfg.SoundEnabled, cfg.SoundFile)
+			}(a.label, a.ktv, cfg.NotifyUrgency, cfg.NotifyIcon, cfg.SoundEnabled, cfg.SoundFile, unitName)
 		}
+	}
+	if changed {
+		alarms := append([]alarm(nil), m.alarms...)
+		go persistAlarms(alarms)
 	}
 }
 
@@ -274,14 +361,20 @@ func (m alarmModel) saveAlarm() alarmModel {
 		target = target.Add(24 * time.Hour)
 	}
 
-	m.alarms = append(m.alarms, alarm{
+	a := alarm{
 		label:   label,
 		target:  target,
 		ktv:     ktt,
 		enabled: true,
-	})
+	}
+	// Schedule a background systemd timer so the alarm fires even if the TUI is closed.
+	a.unitName = scheduleAlarmUnit(target)
+
+	m.alarms = append(m.alarms, a)
 	m.mode = alarmList
 	m.cursor = len(m.alarms) - 1
+	alarms := append([]alarm(nil), m.alarms...)
+	go persistAlarms(alarms)
 	return m
 }
 

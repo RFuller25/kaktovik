@@ -66,6 +66,11 @@ func (c convertModel) setMode(m convertMode) convertModel {
 	return c
 }
 
+// IsCapturingInput always returns true: the converter keeps a text input focused at all times.
+func (c convertModel) IsCapturingInput() bool {
+	return true
+}
+
 func (c convertModel) update(msg tea.Msg) (convertModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:

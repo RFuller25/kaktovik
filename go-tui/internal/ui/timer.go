@@ -52,6 +52,11 @@ func newTimer(preset time.Duration) timerModel {
 	return m
 }
 
+// IsCapturingInput returns true while the timer is idle and its text input has focus.
+func (m timerModel) IsCapturingInput() bool {
+	return m.state == timerIdle
+}
+
 func (m timerModel) update(msg tea.Msg, cfg config.Config) (timerModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tickMsg:

@@ -97,9 +97,10 @@ With --headless, runs in background and sends a desktop notification at alarm ti
 			preset = t
 		}
 
+		immediate, _ := cmd.Flags().GetBool("immediate")
 		cfg, _ := config.Load()
 		if headless && !preset.IsZero() {
-			return runHeadlessAlarm(preset, cfg)
+			return runHeadlessAlarm(preset, cfg, immediate)
 		}
 		ui.ApplyTheme(cfg.Theme)
 		return runTUI(ui.Options{InitialTab: ui.TabAlarm, AlarmPreset: preset, Cfg: cfg})
@@ -163,6 +164,7 @@ func init() {
 
 	timerCmd.Flags().BoolP("headless", "H", false, "run without TUI, notify on completion")
 	alarmCmd.Flags().BoolP("headless", "H", false, "run without TUI, notify at alarm time")
+	alarmCmd.Flags().Bool("immediate", false, "fire notification immediately without sleeping (used by scheduled background alarms)")
 
 	rootCmd.AddCommand(timerCmd, alarmCmd, stopwatchCmd, convertCmd, nowCmd, installFontCmd)
 }
@@ -189,17 +191,20 @@ func runHeadlessTimer(d time.Duration, cfg config.Config) error {
 	return nil
 }
 
-func runHeadlessAlarm(target time.Time, cfg config.Config) error {
-	now := time.Now()
-	if target.Before(now) {
-		target = target.Add(24 * time.Hour)
+func runHeadlessAlarm(target time.Time, cfg config.Config, immediate bool) error {
+	if !immediate {
+		now := time.Now()
+		if target.Before(now) {
+			target = target.Add(24 * time.Hour)
+		}
+		wait := time.Until(target)
+		kt := ktv.FromTime(target)
+		fmt.Printf("Alarm set for %02d:%02d:%02d (%s), fires in %s\n",
+			target.Hour(), target.Minute(), target.Second(),
+			kt.Dotted(), formatDurationHuman(wait))
+		time.Sleep(wait)
 	}
-	wait := time.Until(target)
 	kt := ktv.FromTime(target)
-	fmt.Printf("Alarm set for %02d:%02d:%02d (%s), fires in %s\n",
-		target.Hour(), target.Minute(), target.Second(),
-		kt.Dotted(), formatDurationHuman(wait))
-	time.Sleep(wait)
 	notify.SendUrgent("Kaktovik Alarm", fmt.Sprintf("Alarm: %02d:%02d:%02d  %s",
 		target.Hour(), target.Minute(), target.Second(), kt.Spaced()),
 		cfg.NotifyUrgency, cfg.NotifyIcon)
