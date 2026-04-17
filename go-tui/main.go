@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
+	"github.com/rfuller25/kaktovik/go-tui/internal/config"
 	"github.com/rfuller25/kaktovik/go-tui/internal/ktv"
 	"github.com/rfuller25/kaktovik/go-tui/internal/notify"
 	"github.com/rfuller25/kaktovik/go-tui/internal/ui"
@@ -37,7 +38,12 @@ Run without subcommands to open the full TUI.`,
 		if err != nil {
 			return err
 		}
-		return runTUI(ui.Options{Timezone: loc})
+		cfg, _ := config.Load()
+		if tzFlag != "" {
+			cfg.Timezone = tzFlag
+		}
+		ui.ApplyTheme(cfg.Theme)
+		return runTUI(ui.Options{Timezone: loc, Cfg: cfg})
 	},
 }
 
@@ -61,10 +67,12 @@ With --headless, runs in background and sends a desktop notification on completi
 			preset = d
 		}
 
+		cfg, _ := config.Load()
 		if headless && preset > 0 {
-			return runHeadlessTimer(preset)
+			return runHeadlessTimer(preset, cfg)
 		}
-		return runTUI(ui.Options{InitialTab: ui.TabTimer, TimerPreset: preset})
+		ui.ApplyTheme(cfg.Theme)
+		return runTUI(ui.Options{InitialTab: ui.TabTimer, TimerPreset: preset, Cfg: cfg})
 	},
 }
 
@@ -88,10 +96,12 @@ With --headless, runs in background and sends a desktop notification at alarm ti
 			preset = t
 		}
 
+		cfg, _ := config.Load()
 		if headless && !preset.IsZero() {
-			return runHeadlessAlarm(preset)
+			return runHeadlessAlarm(preset, cfg)
 		}
-		return runTUI(ui.Options{InitialTab: ui.TabAlarm, AlarmPreset: preset})
+		ui.ApplyTheme(cfg.Theme)
+		return runTUI(ui.Options{InitialTab: ui.TabAlarm, AlarmPreset: preset, Cfg: cfg})
 	},
 }
 
@@ -99,7 +109,9 @@ var stopwatchCmd = &cobra.Command{
 	Use:   "stopwatch",
 	Short: "Open the stopwatch",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runTUI(ui.Options{InitialTab: ui.TabStopwatch})
+		cfg, _ := config.Load()
+		ui.ApplyTheme(cfg.Theme)
+		return runTUI(ui.Options{InitialTab: ui.TabStopwatch, Cfg: cfg})
 	},
 }
 
@@ -107,7 +119,9 @@ var convertCmd = &cobra.Command{
 	Use:   "convert",
 	Short: "Open the time converter",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runTUI(ui.Options{InitialTab: ui.TabConvert})
+		cfg, _ := config.Load()
+		ui.ApplyTheme(cfg.Theme)
+		return runTUI(ui.Options{InitialTab: ui.TabConvert, Cfg: cfg})
 	},
 }
 
@@ -148,18 +162,19 @@ func runTUI(opts ui.Options) error {
 	return err
 }
 
-func runHeadlessTimer(d time.Duration) error {
+func runHeadlessTimer(d time.Duration, cfg config.Config) error {
 	kt := ktv.FromDuration(d)
 	fmt.Printf("Timer started: %s (%s)\n", formatDurationHuman(d), kt.Dotted())
 	time.Sleep(d)
-	notify.SendUrgent("Kaktovik Timer", fmt.Sprintf("Timer finished after %s", formatDurationHuman(d)), "critical", "")
+	notify.SendUrgent("Kaktovik Timer", fmt.Sprintf("Timer finished after %s", formatDurationHuman(d)),
+		cfg.NotifyUrgency, cfg.NotifyIcon)
 	notify.TerminalAttention()
-	notify.PlaySound(true, "")
+	notify.PlaySound(cfg.SoundEnabled, cfg.SoundFile)
 	fmt.Println("Timer complete.")
 	return nil
 }
 
-func runHeadlessAlarm(target time.Time) error {
+func runHeadlessAlarm(target time.Time, cfg config.Config) error {
 	now := time.Now()
 	if target.Before(now) {
 		target = target.Add(24 * time.Hour)
@@ -171,9 +186,10 @@ func runHeadlessAlarm(target time.Time) error {
 		kt.Dotted(), formatDurationHuman(wait))
 	time.Sleep(wait)
 	notify.SendUrgent("Kaktovik Alarm", fmt.Sprintf("Alarm: %02d:%02d:%02d  %s",
-		target.Hour(), target.Minute(), target.Second(), kt.Spaced()), "critical", "")
+		target.Hour(), target.Minute(), target.Second(), kt.Spaced()),
+		cfg.NotifyUrgency, cfg.NotifyIcon)
 	notify.TerminalAttention()
-	notify.PlaySound(true, "")
+	notify.PlaySound(cfg.SoundEnabled, cfg.SoundFile)
 	fmt.Println("Alarm fired.")
 	return nil
 }
