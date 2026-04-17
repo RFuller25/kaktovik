@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/rfuller25/kaktovik/go-tui/internal/config"
 	"github.com/rfuller25/kaktovik/go-tui/internal/ktv"
 	"github.com/rfuller25/kaktovik/go-tui/internal/notify"
 )
@@ -51,7 +52,7 @@ func newTimer(preset time.Duration) timerModel {
 	return m
 }
 
-func (m timerModel) update(msg tea.Msg) (timerModel, tea.Cmd) {
+func (m timerModel) update(msg tea.Msg, cfg config.Config) (timerModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tickMsg:
 		if m.state == timerRunning {
@@ -61,11 +62,11 @@ func (m timerModel) update(msg tea.Msg) (timerModel, tea.Cmd) {
 			if elapsed > m.remaining {
 				m.remaining = 0
 				m.state = timerDone
-				go func() {
-					notify.SendUrgent("Kaktovik Timer", "Your timer has finished!", "critical", "")
+				go func(urgency, icon string, soundEnabled bool, soundFile string) {
+					notify.SendUrgent("Kaktovik Timer", "Your timer has finished!", urgency, icon)
 					notify.TerminalAttention()
-					notify.PlaySound(true, "")
-				}()
+					notify.PlaySound(soundEnabled, soundFile)
+				}(cfg.NotifyUrgency, cfg.NotifyIcon, cfg.SoundEnabled, cfg.SoundFile)
 			} else {
 				m.remaining -= elapsed
 			}

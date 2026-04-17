@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/rfuller25/kaktovik/go-tui/internal/config"
 	"github.com/rfuller25/kaktovik/go-tui/internal/ktv"
 	"github.com/rfuller25/kaktovik/go-tui/internal/notify"
 )
@@ -99,11 +100,11 @@ func makeKTVInputs() []textinput.Model {
 	return inputs
 }
 
-func (m alarmModel) update(msg tea.Msg) (alarmModel, tea.Cmd) {
+func (m alarmModel) update(msg tea.Msg, cfg config.Config) (alarmModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tickMsg:
 		m.now = time.Time(msg)
-		m.checkAlarms()
+		m.checkAlarms(cfg)
 
 	case tea.KeyMsg:
 		if m.mode == alarmList {
@@ -199,7 +200,7 @@ func nextFocus(cur int, ktvMode bool, reverse bool) int {
 	return (cur + 1) % 4
 }
 
-func (m *alarmModel) checkAlarms() {
+func (m *alarmModel) checkAlarms(cfg config.Config) {
 	for i := range m.alarms {
 		a := &m.alarms[i]
 		if a.enabled && !a.fired && m.now.After(a.target) {
@@ -210,7 +211,7 @@ func (m *alarmModel) checkAlarms() {
 				notify.SendUrgent(title, body, urgency, icon)
 				notify.TerminalAttention()
 				notify.PlaySound(soundEnabled, soundFile)
-			}(a.label, a.ktv, "critical", "", true, "")
+			}(a.label, a.ktv, cfg.NotifyUrgency, cfg.NotifyIcon, cfg.SoundEnabled, cfg.SoundFile)
 		}
 	}
 }
