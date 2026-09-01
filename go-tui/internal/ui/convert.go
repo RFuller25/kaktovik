@@ -66,9 +66,11 @@ func (c convertModel) setMode(m convertMode) convertModel {
 	return c
 }
 
-// IsCapturingInput always returns true: the converter keeps a text input focused at all times.
+// IsCapturingInput returns false: the converter's fields are numeric-only and
+// never collide with the single-letter/arrow-key global hotkeys, so global
+// navigation (tab switching, quit) must stay available while editing.
 func (c convertModel) IsCapturingInput() bool {
-	return true
+	return false
 }
 
 func (c convertModel) update(msg tea.Msg) (convertModel, tea.Cmd) {

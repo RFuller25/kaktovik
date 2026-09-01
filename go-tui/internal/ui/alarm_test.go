@@ -5,7 +5,20 @@ import (
 	"time"
 )
 
+// isolateAlarmEnv redirects alarmstore's file path to a temp directory and
+// stubs out the real systemd-run call, so tests never touch the user's
+// actual ~/.config/kaktovik/alarms.json or schedule real systemd timers.
+func isolateAlarmEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	orig := scheduleAlarmUnit
+	scheduleAlarmUnit = func(time.Time) string { return "" }
+	t.Cleanup(func() { scheduleAlarmUnit = orig })
+}
+
 func TestIsCapturingInput(t *testing.T) {
+	isolateAlarmEnv(t)
 	m := newAlarm(time.Time{})
 	if m.IsCapturingInput() {
 		t.Error("new alarm (list mode) should not be capturing input")
@@ -23,6 +36,7 @@ func TestIsCapturingInput(t *testing.T) {
 }
 
 func TestEnterOnLastFieldSavesAlarm(t *testing.T) {
+	isolateAlarmEnv(t)
 	m := newAlarm(time.Time{})
 	m.mode = alarmAdd
 	m.ktvMode = false
@@ -53,6 +67,7 @@ func TestEnterOnLastFieldSavesAlarm(t *testing.T) {
 }
 
 func TestEnterOnNonLastFieldAdvancesFocus(t *testing.T) {
+	isolateAlarmEnv(t)
 	m := newAlarm(time.Time{})
 	m.mode = alarmAdd
 	m.ktvMode = false
@@ -69,6 +84,7 @@ func TestEnterOnNonLastFieldAdvancesFocus(t *testing.T) {
 }
 
 func TestKTVModeEnterOnLabelSaves(t *testing.T) {
+	isolateAlarmEnv(t)
 	m := newAlarm(time.Time{})
 	m.mode = alarmAdd
 	m.ktvMode = true

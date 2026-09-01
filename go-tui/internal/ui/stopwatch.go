@@ -124,11 +124,3 @@ func (m stopwatchModel) view(width int) string {
 	sb.WriteString(styleHelp.Render(keyHelp))
 	return sb.String()
 }
-
-// formatDurStr returns a human string for a duration.
-func formatDurStr(d time.Duration) string {
-	h, m, s, ms := formatDur(d)
-	return fmt.Sprintf("%02d:%02d:%02d.%03d", h, m, s, ms)
-}
-
-var _ = formatDurStr // keep for possible future use

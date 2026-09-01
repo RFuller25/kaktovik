@@ -88,7 +88,9 @@ func (a alarm) toStore() alarmstore.Alarm {
 // scheduleAlarmUnit creates a systemd transient timer that fires kaktovik alarm
 // --headless --immediate at the given wall-clock time, even if the TUI is closed.
 // Returns the unit name on success, empty string on failure.
-func scheduleAlarmUnit(target time.Time) string {
+// It is a package-level var so tests can stub it out and avoid touching the
+// real systemd user instance.
+var scheduleAlarmUnit = func(target time.Time) string {
 	exe, err := os.Executable()
 	if err != nil {
 		return ""
